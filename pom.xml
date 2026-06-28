@@ -49,6 +49,12 @@
 			<scope>provided</scope>
 		</dependency>
 
+		<!-- Redis - for velocity checks and caching -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+
 		<!-- DevTools - auto restart on code change -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

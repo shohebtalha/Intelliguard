@@ -22,7 +22,8 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final TransactionMapper transactionMapper;
-    private final RuleEngine ruleEngine; // plugged in now
+    private final RuleEngine ruleEngine;
+    private final VelocityService velocityService;
 
     @Transactional
     public TransactionResponse processTransaction(TransactionRequest request) {
@@ -34,15 +35,26 @@ public class TransactionService {
         // Step 1: Convert request → entity
         Transaction transaction = transactionMapper.toEntity(request);
 
-        // Step 2: Run the REAL rule engine
+        // Step 2: Pre-load velocity data into Redis
+        // VelocityRule will READ this data when the engine runs it
+        // We call this here so the count includes the CURRENT transaction
+        VelocityService.VelocityMetrics metrics = velocityService
+                .recordAndGet(request.getSenderId(), request.getAmount());
+
+        log.debug("Velocity metrics: {}txn/10min, {}txn/1hr, ₹{}/1hr",
+                metrics.getTxnCountLast10Min(),
+                metrics.getTxnCountLastHour(),
+                metrics.getTotalAmountLastHour());
+
+        // Step 3: Run all fraud rules (including VelocityRule which reads Redis)
         RuleEngine.EngineResult result = ruleEngine.evaluate(transaction);
 
-        // Step 3: Apply engine result to transaction
+        // Step 4: Apply engine result to transaction
         transaction.setStatus(result.getDecision().name());
         transaction.setFraudScore(result.getFraudScore());
         transaction.setFlagReason(result.getFlagReason());
 
-        // Step 4: Save to database
+        // Step 5: Save to database
         Transaction saved = transactionRepository.save(transaction);
 
         long decisionTime = System.currentTimeMillis() - startTime;

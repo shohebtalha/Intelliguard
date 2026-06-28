@@ -27,9 +27,9 @@ public class VelocityRule implements FraudRule {
 
     @Override
     public RuleResult evaluate(Transaction transaction) {
-        // Record this transaction and get updated velocity metrics
-        VelocityService.VelocityMetrics metrics = velocityService
-                .recordAndGet(transaction.getSenderId(), transaction.getAmount());
+
+        // VelocityRule should only READ, not record again
+        VelocityService.VelocityMetrics metrics = velocityService.getMetrics(transaction.getSenderId());
 
         // Check 1: Too many transactions in 10 minutes → BLOCK
         if (metrics.isTxnCountSuspicious()) {

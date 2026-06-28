@@ -8,6 +8,7 @@ import com.intelliguard.engine.RuleEngine;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.repository.TransactionRepository;
 import com.intelliguard.service.TransactionService;
+import com.intelliguard.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
+
+    @Mock
+    private VelocityService velocityService;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -64,6 +68,17 @@ class TransactionServiceTest {
                 .status("PENDING")
                 .build();
 
+        when(velocityService.recordAndGet(any(), any())).thenReturn(
+                VelocityService.VelocityMetrics.builder()
+                        .txnCountLast10Min(1L)
+                        .txnCountLastHour(1L)
+                        .totalAmountLastHour(new BigDecimal("5000"))
+                        .isTxnCountSuspicious(false)
+                        .isTxnRateSuspicious(false)
+                        .isAmountSuspicious(false)
+                        .build()
+        );
+
         when(transactionMapper.toEntity(any())).thenReturn(mockTransaction);
         when(ruleEngine.evaluate(any())).thenReturn(
                 RuleEngine.EngineResult.builder()
@@ -99,6 +114,17 @@ class TransactionServiceTest {
                 .country("NG")
                 .status("PENDING")
                 .build();
+
+        when(velocityService.recordAndGet(any(), any())).thenReturn(
+                VelocityService.VelocityMetrics.builder()
+                        .txnCountLast10Min(1L)
+                        .txnCountLastHour(1L)
+                        .totalAmountLastHour(new BigDecimal("5000"))
+                        .isTxnCountSuspicious(false)
+                        .isTxnRateSuspicious(false)
+                        .isAmountSuspicious(false)
+                        .build()
+        );
 
         when(transactionMapper.toEntity(any())).thenReturn(mockTransaction);
         when(ruleEngine.evaluate(any())).thenReturn(
@@ -136,6 +162,16 @@ class TransactionServiceTest {
                 .country("IN")
                 .status("PENDING")
                 .build();
+        when(velocityService.recordAndGet(any(), any())).thenReturn(
+                VelocityService.VelocityMetrics.builder()
+                        .txnCountLast10Min(1L)
+                        .txnCountLastHour(1L)
+                        .totalAmountLastHour(new BigDecimal("5000"))
+                        .isTxnCountSuspicious(false)
+                        .isTxnRateSuspicious(false)
+                        .isAmountSuspicious(false)
+                        .build()
+        );
 
         when(transactionMapper.toEntity(any())).thenReturn(mockTransaction);
         when(ruleEngine.evaluate(any())).thenReturn(

@@ -102,6 +102,30 @@ public class VelocityService {
         return new BigDecimal(totalPaise).divide(new BigDecimal("100"));
     }
 
+    public VelocityMetrics getMetrics(String senderId) {
+        String countKey = String.format(TXN_COUNT_KEY, senderId, "10min");
+        String hourKey = String.format(TXN_COUNT_KEY, senderId, "1hour");
+        String amountKey = String.format(AMOUNT_SUM_KEY, senderId, "1hour");
+
+        Long count10min = redisTemplate.opsForValue().get(countKey);
+        Long count1hour = redisTemplate.opsForValue().get(hourKey);
+        Long totalPaise = redisTemplate.opsForValue().get(amountKey);
+
+        long c10 = count10min != null ? count10min : 0L;
+        long c1h = count1hour != null ? count1hour : 0L;
+        BigDecimal amount = totalPaise != null
+                ? new BigDecimal(totalPaise).divide(new BigDecimal("100"))
+                : BigDecimal.ZERO;
+
+        return VelocityMetrics.builder()
+                .txnCountLast10Min(c10)
+                .txnCountLastHour(c1h)
+                .totalAmountLastHour(amount)
+                .isTxnCountSuspicious(c10 > MAX_TXN_PER_10MIN)
+                .isTxnRateSuspicious(c1h > MAX_TXN_PER_HOUR)
+                .isAmountSuspicious(amount.compareTo(MAX_AMOUNT_PER_HOUR) > 0)
+                .build();
+    }
     /**
      * Result object containing all velocity metrics for a sender.
      */

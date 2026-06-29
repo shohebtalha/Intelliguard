@@ -1,5 +1,6 @@
 package com.intelliguard;
 
+import com.intelliguard.Kafka.TransactionProducer;
 import com.intelliguard.dto.TransactionMapper;
 import com.intelliguard.dto.TransactionRequest;
 import com.intelliguard.dto.TransactionResponse;
@@ -37,6 +38,9 @@ class TransactionServiceTest {
 
     @Mock
     private RuleEngine ruleEngine;
+
+    @Mock
+    private TransactionProducer transactionProducer;
 
     @InjectMocks
     private TransactionService transactionService;

@@ -29,6 +29,12 @@
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+		<!-- Kafka - event streaming -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
 		<!-- Spring Data JPA - for database operations -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

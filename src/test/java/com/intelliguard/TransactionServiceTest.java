@@ -8,6 +8,7 @@ import com.intelliguard.engine.DecisionType;
 import com.intelliguard.engine.RuleEngine;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.repository.TransactionRepository;
+import com.intelliguard.service.MLScoringService;
 import com.intelliguard.service.TransactionService;
 import com.intelliguard.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,9 @@ class TransactionServiceTest {
 
     @Mock
     private TransactionProducer transactionProducer;
+
+    @Mock
+    private MLScoringService mlScoringService;
 
     @InjectMocks
     private TransactionService transactionService;
@@ -92,6 +96,9 @@ class TransactionServiceTest {
                         .triggeredRuleCount(0)
                         .build()
         );
+
+        when(mlScoringService.predictFraudProbability(any())).thenReturn(-1.0);
+
         when(transactionRepository.save(any())).thenReturn(mockTransaction);
         when(transactionMapper.toResponse(any(), any())).thenReturn(
                 TransactionResponse.builder()
@@ -129,6 +136,8 @@ class TransactionServiceTest {
                         .isAmountSuspicious(false)
                         .build()
         );
+
+        when(mlScoringService.predictFraudProbability(any())).thenReturn(-1.0);
 
         when(transactionMapper.toEntity(any())).thenReturn(mockTransaction);
         when(ruleEngine.evaluate(any())).thenReturn(
@@ -176,6 +185,8 @@ class TransactionServiceTest {
                         .isAmountSuspicious(false)
                         .build()
         );
+
+        when(mlScoringService.predictFraudProbability(any())).thenReturn(-1.0);
 
         when(transactionMapper.toEntity(any())).thenReturn(mockTransaction);
         when(ruleEngine.evaluate(any())).thenReturn(

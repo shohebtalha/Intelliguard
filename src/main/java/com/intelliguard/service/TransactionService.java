@@ -32,6 +32,7 @@ public class TransactionService {
     private final VelocityService velocityService;
     private final MLScoringService mlScoringService;
     private final TransactionProducer transactionProducer;
+    private final AuditLogService auditLogService;
 
     // ML score thresholds
     private static final double ML_BLOCK_THRESHOLD  = 0.75;
@@ -120,6 +121,8 @@ public class TransactionService {
         // Step 8: Publish to Kafka
         TransactionEvent event = buildEvent(saved, decisionTime);
         transactionProducer.publishTransactionProcessed(event);
+        // Async audit log — runs in background, doesn't affect response time
+        auditLogService.logDecision(saved, decisionTime);
 
         if ("BLOCK".equals(saved.getStatus()) || "REVIEW".equals(saved.getStatus())) {
             event.setEventType("FRAUD_ALERT");

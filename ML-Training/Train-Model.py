@@ -156,3 +156,4 @@ with open("model.onnx", "wb") as f:
 
 print("\n✅ DONE! model.onnx created.")
 print("Copy this file to: src/main/resources/ml/model.onnx")
+

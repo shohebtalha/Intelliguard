@@ -58,9 +58,9 @@ public class MLScoringService {
                     session.getOutputNames());
 
         } catch (Exception e) {
-            log.warn("⚠️  ML model not loaded: {}. Running rule-engine-only mode.", e.getMessage());
-            modelLoaded = false;
-        }
+        log.error("⚠️  ML model failed to load:", e);
+        modelLoaded = false;
+    }
     }
 
     /**

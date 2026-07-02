@@ -95,8 +95,10 @@ public class ExplainabilityController {
 
         Map<String, Object> shapValues = new LinkedHashMap<>();
         for (int i = 0; i < featureNames.length; i++) {
-            double contribution = features[i] * featureImportance[i] * fraudScore;
-            if (contribution > 0.001) { // only show meaningful contributions
+// Normalize account_age_days (feature index 6) to 0-1 range before computing contribution
+            double featureVal = features[i];
+            if (i == 6) featureVal = Math.min(featureVal / 2000.0, 1.0); // max 2000 days
+            double contribution = featureVal * featureImportance[i] * fraudScore;            if (contribution > 0.001) { // only show meaningful contributions
                 shapValues.put(featureNames[i],
                         Math.round(contribution * 10000.0) / 10000.0);
             }

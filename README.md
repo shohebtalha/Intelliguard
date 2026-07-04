@@ -19,11 +19,11 @@
 ---
 ## 🚀 Quick Start (One Command)
 
-\```bash
+```bash
 git clone https://github.com/shohebtalha/intelliguard.git
 cd intelliguard
 docker-compose up -d
-\```
+```
 
 | Service | URL | Credentials |
 |---------|-----|-------------|

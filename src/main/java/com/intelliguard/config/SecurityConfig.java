@@ -50,8 +50,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info","/api/health/**").permitAll()
-                        // Everything else requires authentication
+                        .requestMatchers("/actuator/health", "/actuator/info", "/api/health/**",
+                                "/swagger-ui.html", "/swagger-ui/**", "/api-docs/**").permitAll()                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 

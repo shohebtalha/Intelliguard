@@ -8,6 +8,7 @@ import com.intelliguard.engine.DecisionType;
 import com.intelliguard.engine.RuleEngine;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.repository.TransactionRepository;
+import com.intelliguard.service.AuditLogService;
 import com.intelliguard.service.MLScoringService;
 import com.intelliguard.service.TransactionService;
 import com.intelliguard.service.VelocityService;
@@ -45,6 +46,9 @@ class TransactionServiceTest {
 
     @Mock
     private MLScoringService mlScoringService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private TransactionService transactionService;

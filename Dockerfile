@@ -16,15 +16,14 @@ RUN mvn clean package -DskipTests -B
 # ─── Stage 2: Run ─────────────────────────────────────────
 # Use a lightweight JRE (not full JDK) for the final image
 # This makes the image ~200MB instead of ~600MB
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
 # Copy only the built JAR from stage 1
 COPY --from=builder /app/target/*.jar app.jar
 
-# Copy ML model into the container
-COPY src/main/resources/ml/model.onnx /app/resources/ml/model.onnx
+
 
 # Expose port 8080
 EXPOSE 8080

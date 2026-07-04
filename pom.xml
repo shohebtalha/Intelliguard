@@ -120,6 +120,12 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- Prometheus metrics for Grafana -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
 
 	</dependencies>
 

@@ -17,6 +17,20 @@
 </div>
 
 ---
+## 🚀 Quick Start (One Command)
+
+\```bash
+git clone https://github.com/shohebtalha/intelliguard.git
+cd intelliguard
+docker-compose up -d
+\```
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Dashboard | http://localhost:3000 | admin / password123 |
+| API Docs | http://localhost:8080/swagger-ui.html | — |
+| Grafana | http://localhost:3001 | admin / admin |
+| Health | http://localhost:8080/api/health/status | — |
 
 ## 🚨 The Problem
 

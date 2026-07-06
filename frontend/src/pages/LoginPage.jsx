@@ -41,8 +41,8 @@ const S = {
 };
 
 export default function LoginPage() {
-    const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('password123');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
@@ -74,12 +74,12 @@ export default function LoginPage() {
                 {error && <div style={S.error}>{error}</div>}
 
                 <form onSubmit={handleLogin}>
-                    <label style={S.label}>Username</label>
-                    <input style={S.input} value={username}
+                    <label style={S.label} htmlFor="username">Username</label>
+                    <input id="username" style={S.input} value={username}
                            onChange={e => setUsername(e.target.value)} placeholder="username" />
 
-                    <label style={S.label}>Password</label>
-                    <input style={S.input} type="password" value={password}
+                    <label style={S.label} htmlFor="password">Password</label>
+                    <input id="password" style={S.input} type="password" value={password}
                            onChange={e => setPassword(e.target.value)} placeholder="password" />
 
                     <button style={S.btn} type="submit" disabled={loading}>
@@ -87,7 +87,6 @@ export default function LoginPage() {
                     </button>
                 </form>
 
-                <p style={S.hint}>Default: admin / password123</p>
             </div>
         </div>
     );

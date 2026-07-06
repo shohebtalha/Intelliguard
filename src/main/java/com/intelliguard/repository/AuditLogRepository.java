@@ -6,18 +6,21 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
 
-    List<AuditLog> findByTransactionId(String transactionId);
+    List<AuditLog> findByTenantIdAndTransactionId(String tenantId, String transactionId);
 
-    List<AuditLog> findBySenderId(String senderId);
+    List<AuditLog> findByTenantIdAndSenderId(String tenantId, String senderId);
 
-    List<AuditLog> findByDecision(String decision);
+    List<AuditLog> findByTenantIdAndDecision(String tenantId, String decision);
 
     List<AuditLog> findByCreatedAtBetweenOrderByCreatedAtDesc(
             LocalDateTime from, LocalDateTime to);
 
-    List<AuditLog> findAllByOrderByCreatedAtDesc();
+    List<AuditLog> findByTenantIdOrderByCreatedAtDesc(String tenantId);
+
+    Optional<AuditLog> findTopByTenantIdOrderByCreatedAtDesc(String tenantId);
 }

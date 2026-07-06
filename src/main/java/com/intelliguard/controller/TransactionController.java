@@ -1,14 +1,19 @@
 package com.intelliguard.controller;
 
 import com.intelliguard.dto.ApiResponse;
+import com.intelliguard.dto.PageResponse;
 import com.intelliguard.dto.TransactionRequest;
 import com.intelliguard.dto.TransactionResponse;
 import com.intelliguard.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,14 +22,20 @@ import java.util.List;
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
 public class TransactionController {
 
     private final TransactionService transactionService;
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<TransactionResponse>> submitTransaction(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody TransactionRequest request) {
+
+        if ((request.getIdempotencyKey() == null || request.getIdempotencyKey().isBlank())
+                && idempotencyKey != null && !idempotencyKey.isBlank()) {
+            request.setIdempotencyKey(idempotencyKey);
+        }
 
         TransactionResponse response = transactionService.processTransaction(request);
         return ResponseEntity
@@ -33,18 +44,24 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<TransactionResponse>>> getAllTransactions(
-            @RequestParam(required = false) String status) {
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> getAllTransactions(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
-        List<TransactionResponse> transactions = (status != null && !status.isBlank())
-                ? transactionService.getTransactionsByStatus(status.toUpperCase())
-                : transactionService.getAllTransactions();
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<TransactionResponse> transactions = transactionService.getTransactions(
+                status,
+                PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
 
         return ResponseEntity.ok(
-                ApiResponse.success(transactions, "Fetched " + transactions.size() + " transactions"));
+                ApiResponse.success(PageResponse.from(transactions),
+                        "Fetched " + transactions.getNumberOfElements() + " transactions"));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<TransactionResponse>> getTransactionById(
             @PathVariable String id) {
 

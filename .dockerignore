@@ -1,0 +1,8 @@
+target/
+*.iml
+.idea/
+.git/
+frontend/node_modules/
+frontend/dist/
+ml-training/
+*.md

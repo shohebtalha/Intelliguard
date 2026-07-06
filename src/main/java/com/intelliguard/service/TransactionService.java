@@ -8,10 +8,12 @@ import com.intelliguard.engine.DecisionType;
 import com.intelliguard.engine.RuleEngine;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.exception.TransactionNotFoundException;
-import com.intelliguard.Kafka.TransactionProducer;
+import com.intelliguard.config.KafkaTopicConfig;
 import com.intelliguard.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,8 +33,11 @@ public class TransactionService {
     private final RuleEngine ruleEngine;
     private final VelocityService velocityService;
     private final MLScoringService mlScoringService;
-    private final TransactionProducer transactionProducer;
+    private final OutboxEventService outboxEventService;
     private final AuditLogService auditLogService;
+    private final CurrentUserService currentUserService;
+    private final FraudCaseService fraudCaseService;
+    private final FraudMetricsService fraudMetricsService;
 
     // ML score thresholds
     private static final double ML_BLOCK_THRESHOLD  = 0.75;
@@ -44,6 +49,17 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse processTransaction(TransactionRequest request) {
+        String tenantId = currentUserService.tenantId();
+        if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+            Transaction existing = transactionRepository.findByTenantIdAndIdempotencyKey(
+                            tenantId, request.getIdempotencyKey())
+                    .orElse(null);
+            if (existing != null) {
+                log.info("Returning existing transaction for idempotency key: {}", request.getIdempotencyKey());
+                return transactionMapper.toResponse(existing);
+            }
+        }
+
         log.info("Processing transaction: sender={} amount={} {}",
                 request.getSenderId(), request.getAmount(), request.getCurrency());
 
@@ -51,6 +67,7 @@ public class TransactionService {
 
         // Step 1: Convert request → entity
         Transaction transaction = transactionMapper.toEntity(request);
+        transaction.setTenantId(tenantId);
 
         // Step 2: Record velocity in Redis
         velocityService.recordAndGet(request.getSenderId(), request.getAmount());
@@ -100,6 +117,7 @@ public class TransactionService {
         // Step 6: Apply decision to transaction
         transaction.setStatus(finalDecision.name());
         transaction.setFraudScore(finalScoreDecimal);
+        transaction.setModelVersion(mlScoringService.getModelVersion());
 
         // Combine flag reasons
         String flagReason = ruleResult.getFlagReason();
@@ -117,37 +135,52 @@ public class TransactionService {
 
         log.info("Final decision: {} | score: {} | time: {}ms",
                 saved.getStatus(), saved.getFraudScore(), decisionTime);
+        fraudMetricsService.recordDecision(
+                saved.getTenantId(), saved.getStatus(), decisionTime, mlAvailable);
 
         // Step 8: Publish to Kafka
         TransactionEvent event = buildEvent(saved, decisionTime);
-        transactionProducer.publishTransactionProcessed(event);
+        outboxEventService.enqueue(KafkaTopicConfig.TOPIC_TXN_ENRICHED, event.getSenderId(), event);
         // Async audit log — runs in background, doesn't affect response time
         auditLogService.logDecision(saved, decisionTime);
 
         if ("BLOCK".equals(saved.getStatus()) || "REVIEW".equals(saved.getStatus())) {
+            fraudCaseService.openCaseForDecision(saved);
             event.setEventType("FRAUD_ALERT");
-            transactionProducer.publishFraudAlert(event);
+            outboxEventService.enqueue(KafkaTopicConfig.TOPIC_FRAUD_ALERTS, event.getTransactionId(), event);
         }
 
         return transactionMapper.toResponse(saved, decisionTime);
     }
 
     public List<TransactionResponse> getAllTransactions() {
-        return transactionRepository.findAll()
+        return transactionRepository.findByTenantIdOrderByCreatedAtDesc(
+                        currentUserService.tenantId(), Pageable.unpaged())
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
+    public Page<TransactionResponse> getTransactions(String status, Pageable pageable) {
+        Page<Transaction> page = (status != null && !status.isBlank())
+                ? transactionRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
+                        currentUserService.tenantId(), status.toUpperCase(), pageable)
+                : transactionRepository.findByTenantIdOrderByCreatedAtDesc(
+                        currentUserService.tenantId(), pageable);
+
+        return page.map(transactionMapper::toResponse);
+    }
+
     public TransactionResponse getTransactionById(String id) {
-        Transaction transaction = transactionRepository.findById(id)
+        Transaction transaction = transactionRepository.findByIdAndTenantId(id, currentUserService.tenantId())
                 .orElseThrow(() -> new TransactionNotFoundException(
                         "Transaction not found with id: " + id));
         return transactionMapper.toResponse(transaction);
     }
 
     public List<TransactionResponse> getTransactionsByStatus(String status) {
-        return transactionRepository.findByStatus(status)
+        return transactionRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
+                        currentUserService.tenantId(), status, Pageable.unpaged())
                 .stream()
                 .map(transactionMapper::toResponse)
                 .collect(Collectors.toList());

@@ -4,10 +4,12 @@ import com.intelliguard.dto.ApiResponse;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.exception.TransactionNotFoundException;
 import com.intelliguard.repository.TransactionRepository;
+import com.intelliguard.service.CurrentUserService;
 import com.intelliguard.service.FeatureEngineService;
 import com.intelliguard.service.MLScoringService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,22 +44,23 @@ import java.util.Map;
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
 public class ExplainabilityController {
 
     private final TransactionRepository transactionRepository;
     private final FeatureEngineService featureEngineService;
     private final MLScoringService mlScoringService;
+    private final CurrentUserService currentUserService;
 
     /**
      * GET /api/transactions/{id}/explain
      * Returns a SHAP-style breakdown of why this transaction was flagged.
      */
     @GetMapping("/{id}/explain")
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> explainDecision(
             @PathVariable String id) {
 
-        Transaction transaction = transactionRepository.findById(id)
+        Transaction transaction = transactionRepository.findByIdAndTenantId(id, currentUserService.tenantId())
                 .orElseThrow(() -> new TransactionNotFoundException(
                         "Transaction not found: " + id));
 

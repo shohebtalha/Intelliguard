@@ -2,6 +2,8 @@ package com.intelliguard.repository;
 
 import com.intelliguard.entity.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, String> {
@@ -18,6 +21,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
 
     // Find all transactions with a specific status (APPROVED, BLOCKED, REVIEW)
     List<Transaction> findByStatus(String status);
+
+    Page<Transaction> findByTenantIdOrderByCreatedAtDesc(String tenantId, Pageable pageable);
+
+    Page<Transaction> findByTenantIdAndStatusOrderByCreatedAtDesc(String tenantId, String status, Pageable pageable);
+
+    Optional<Transaction> findByTenantIdAndIdempotencyKey(String tenantId, String idempotencyKey);
+
+    Optional<Transaction> findByIdAndTenantId(String id, String tenantId);
 
     // Count how many transactions a sender made after a given time
     // Used by velocity check: "did this person send > 5 txns in last 10 minutes?"

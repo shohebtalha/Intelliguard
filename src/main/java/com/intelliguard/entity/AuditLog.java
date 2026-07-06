@@ -22,9 +22,9 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "audit_logs", indexes = {
-        @Index(name = "idx_audit_transaction_id", columnList = "transactionId"),
-        @Index(name = "idx_audit_sender_id", columnList = "senderId"),
-        @Index(name = "idx_audit_created_at", columnList = "createdAt")
+        @Index(name = "idx_audit_transaction_id", columnList = "transaction_id"),
+        @Index(name = "idx_audit_sender_id", columnList = "sender_id"),
+        @Index(name = "idx_audit_created_at", columnList = "created_at")
 })
 @Data
 @NoArgsConstructor
@@ -36,13 +36,16 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "tenant_id", nullable = false, updatable = false, length = 80)
+    private String tenantId;
+
+    @Column(name = "transaction_id", nullable = false, updatable = false)
     private String transactionId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "sender_id", nullable = false, updatable = false)
     private String senderId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "receiver_id", nullable = false, updatable = false)
     private String receiverId;
 
     @Column(nullable = false, updatable = false, precision = 15, scale = 2)
@@ -61,21 +64,27 @@ public class AuditLog {
     @Column(updatable = false, precision = 5, scale = 4)
     private BigDecimal fraudScore;
 
-    @Column(length = 1000, updatable = false)
+    @Column(name = "flag_reason", length = 1000, updatable = false)
     private String flagReason;
 
     // ML model details at time of decision
-    @Column(updatable = false)
+    @Column(name = "model_version", updatable = false)
     private String modelVersion;
 
-    @Column(updatable = false)
+    @Column(name = "decision_time_ms", updatable = false)
     private Long decisionTimeMs;
 
     // Who was logged in when this decision was made
-    @Column(updatable = false)
+    @Column(name = "performed_by", updatable = false)
     private String performedBy;
 
+    @Column(name = "previous_hash", length = 128, updatable = false)
+    private String previousHash;
+
+    @Column(name = "record_hash", length = 128, updatable = false)
+    private String recordHash;
+
     @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 }

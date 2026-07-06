@@ -33,8 +33,12 @@ export default function TransactionsPage() {
         setLoading(true);
         try {
             const res = await getTransactions();
-            setTransactions(res.data.data || []);
-        } catch {} finally { setLoading(false); }
+            const payload = res.data.data;
+            setTransactions(Array.isArray(payload) ? payload : payload?.content || []);
+        } catch (err) {
+            console.error('Failed to fetch transactions', err);
+            setTransactions([]);
+        } finally { setLoading(false); }
     };
 
     const filtered = transactions.filter(t => {

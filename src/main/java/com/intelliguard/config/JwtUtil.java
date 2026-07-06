@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * JwtUtil handles everything JWT-related:
@@ -37,6 +38,12 @@ public class JwtUtil {
     @Value("${jwt.expiration}")
     private long expiration; // milliseconds
 
+    @Value("${jwt.issuer:intelliguard}")
+    private String issuer;
+
+    @Value("${jwt.audience:intelliguard-api}")
+    private String audience;
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
@@ -45,9 +52,17 @@ public class JwtUtil {
      * Generate a JWT token for a user after successful login.
      */
     public String generateToken(String username, String role) {
+        return generateToken(username, role, "demo-bank");
+    }
+
+    public String generateToken(String username, String role, String tenantId) {
         return Jwts.builder()
                 .subject(username)
+                .issuer(issuer)
+                .audience().add(audience).and()
+                .id(UUID.randomUUID().toString())
                 .claim("role", role)
+                .claim("tenant_id", tenantId)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
@@ -68,6 +83,10 @@ public class JwtUtil {
         return getClaims(token).get("role", String.class);
     }
 
+    public String extractTenantId(String token) {
+        return getClaims(token).get("tenant_id", String.class);
+    }
+
     /**
      * Validate a JWT token — checks signature and expiry.
      */
@@ -86,6 +105,8 @@ public class JwtUtil {
     private Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
+                .requireIssuer(issuer)
+                .requireAudience(audience)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

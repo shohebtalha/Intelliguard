@@ -33,6 +33,10 @@ public class AppUser {
     @Column(unique = true, nullable = false)
     private String username;
 
+    @Column(name = "tenant_id", nullable = false, length = 80)
+    @Builder.Default
+    private String tenantId = "demo-bank";
+
     @Column(nullable = false)
     private String password; // stored as BCrypt hash — never plaintext
 
@@ -43,6 +47,6 @@ public class AppUser {
     private boolean enabled;
 
     @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 }

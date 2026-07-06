@@ -7,6 +7,7 @@ import com.intelliguard.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnProperty(name = "app.demo.seed-data", havingValue = "true")
 public class DataSeeder implements CommandLineRunner {
 
     private final TransactionRepository transactionRepository;
@@ -42,9 +44,9 @@ public class DataSeeder implements CommandLineRunner {
         if (userRepository.count() > 0) return;
 
         List<AppUser> users = List.of(
-                AppUser.builder().username("admin").password(passwordEncoder.encode("password123")).role("ADMIN").enabled(true).build(),
-                AppUser.builder().username("analyst").password(passwordEncoder.encode("analyst123")).role("ANALYST").enabled(true).build(),
-                AppUser.builder().username("manager").password(passwordEncoder.encode("manager123")).role("MANAGER").enabled(true).build()
+                AppUser.builder().username("admin").tenantId("demo-bank").password(passwordEncoder.encode("password123")).role("ADMIN").enabled(true).build(),
+                AppUser.builder().username("analyst").tenantId("demo-bank").password(passwordEncoder.encode("analyst123")).role("ANALYST").enabled(true).build(),
+                AppUser.builder().username("manager").tenantId("demo-bank").password(passwordEncoder.encode("manager123")).role("MANAGER").enabled(true).build()
         );
         userRepository.saveAll(users);
         log.info("✅ Demo users created: admin/password123, analyst/analyst123, manager/manager123");
@@ -102,6 +104,7 @@ public class DataSeeder implements CommandLineRunner {
                                  String status, String score, String reason) {
         return Transaction.builder()
                 .senderId(sender)
+                .tenantId("demo-bank")
                 .receiverId(receiver)
                 .amount(new BigDecimal(amount))
                 .currency("INR")

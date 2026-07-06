@@ -6,10 +6,11 @@ import com.intelliguard.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -32,8 +33,7 @@ import java.util.List;
 public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
-
-    private static final String MODEL_VERSION = "xgboost-v1.0-onnx";
+    private final CurrentUserService currentUserService;
 
     /**
      * Create an audit log entry for a fraud decision.
@@ -44,8 +44,13 @@ public class AuditLogService {
         try {
             // Get the currently logged-in user (from JWT token)
             String performedBy = getCurrentUsername();
+            String previousHash = auditLogRepository
+                    .findTopByTenantIdOrderByCreatedAtDesc(transaction.getTenantId())
+                    .map(AuditLog::getRecordHash)
+                    .orElse("GENESIS");
 
             AuditLog auditLog = AuditLog.builder()
+                    .tenantId(transaction.getTenantId())
                     .transactionId(transaction.getId())
                     .senderId(transaction.getSenderId())
                     .receiverId(transaction.getReceiverId())
@@ -55,10 +60,12 @@ public class AuditLogService {
                     .decision(transaction.getStatus())
                     .fraudScore(transaction.getFraudScore())
                     .flagReason(transaction.getFlagReason())
-                    .modelVersion(MODEL_VERSION)
+                    .modelVersion(transaction.getModelVersion())
                     .decisionTimeMs(decisionTimeMs)
                     .performedBy(performedBy)
+                    .previousHash(previousHash)
                     .build();
+            auditLog.setRecordHash(hash(auditLog));
 
             auditLogRepository.save(auditLog);
 
@@ -73,22 +80,48 @@ public class AuditLogService {
     }
 
     public List<AuditLog> getAllAuditLogs() {
-        return auditLogRepository.findAllByOrderByCreatedAtDesc();
+        return auditLogRepository.findByTenantIdOrderByCreatedAtDesc(currentUserService.tenantId());
     }
 
     public List<AuditLog> getAuditLogsByTransaction(String transactionId) {
-        return auditLogRepository.findByTransactionId(transactionId);
+        return auditLogRepository.findByTenantIdAndTransactionId(currentUserService.tenantId(), transactionId);
     }
 
     public List<AuditLog> getAuditLogsBySender(String senderId) {
-        return auditLogRepository.findBySenderId(senderId);
+        return auditLogRepository.findByTenantIdAndSenderId(currentUserService.tenantId(), senderId);
     }
 
     private String getCurrentUsername() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated()) {
-            return auth.getName();
+        return currentUserService.username();
+    }
+
+    private String hash(AuditLog auditLog) {
+        String payload = String.join("|",
+                nullSafe(auditLog.getPreviousHash()),
+                nullSafe(auditLog.getTenantId()),
+                nullSafe(auditLog.getTransactionId()),
+                nullSafe(auditLog.getSenderId()),
+                nullSafe(auditLog.getReceiverId()),
+                nullSafe(auditLog.getAmount()),
+                nullSafe(auditLog.getCurrency()),
+                nullSafe(auditLog.getCountry()),
+                nullSafe(auditLog.getDecision()),
+                nullSafe(auditLog.getFraudScore()),
+                nullSafe(auditLog.getFlagReason()),
+                nullSafe(auditLog.getModelVersion()),
+                nullSafe(auditLog.getDecisionTimeMs()),
+                nullSafe(auditLog.getPerformedBy())
+        );
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(digest.digest(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to hash audit log", ex);
         }
-        return "system";
+    }
+
+    private String nullSafe(Object value) {
+        return value == null ? "" : value.toString();
     }
 }

@@ -2,58 +2,60 @@ package com.intelliguard.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Set;
+import java.util.UUID;
 
-/**
- * VelocityService tracks HOW FAST a user is transacting.
- *
- * WHAT IS VELOCITY IN FRAUD?
- * Normal person: 2-3 transactions per day.
- * Fraudster using stolen card: 20 transactions in 5 minutes.
- *
- * We use Redis because:
- * 1. It's in-memory — microsecond reads, no database round trip
- * 2. It has built-in key expiry — counters auto-reset after the window
- * 3. INCR is atomic — safe for concurrent requests
- *
- * HOW SLIDING WINDOW WORKS:
- * Key: "velocity:USER_001:txn_count:10min"
- * Value: 14  (14 transactions in last 10 minutes)
- * TTL: 600 seconds (auto-deletes after 10 minutes)
- *
- * Every new transaction → INCR the key → check if over limit.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class VelocityService {
 
-    private final RedisTemplate<String, Long> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
-    // Key patterns — notice the structure: service:userId:metric:window
-    private static final String TXN_COUNT_KEY   = "velocity:%s:txn_count:%s";
-    private static final String AMOUNT_SUM_KEY  = "velocity:%s:amount_sum:%s";
+    private static final String TXN_WINDOW_KEY = "velocity:%s:txn";
+    private static final String AMOUNT_WINDOW_KEY = "velocity:%s:amount";
 
-    // Thresholds
-    private static final long MAX_TXN_PER_10MIN  = 10;   // max 10 transactions in 10 minutes
-    private static final long MAX_TXN_PER_HOUR   = 30;   // max 30 transactions per hour
-    private static final BigDecimal MAX_AMOUNT_PER_HOUR = new BigDecimal("500000"); // ₹5L per hour
+    private static final long MAX_TXN_PER_10MIN = 10;
+    private static final long MAX_TXN_PER_HOUR = 30;
+    private static final BigDecimal MAX_AMOUNT_PER_HOUR = new BigDecimal("500000");
 
-    /**
-     * Record a new transaction and return velocity metrics for this sender.
-     * Call this BEFORE the fraud check so metrics are current.
-     */
     public VelocityMetrics recordAndGet(String senderId, BigDecimal amount) {
-        // Increment counters in Redis
-        long count10min = incrementCounter(senderId, "10min", Duration.ofMinutes(10));
-        long count1hour = incrementCounter(senderId, "1hour", Duration.ofHours(1));
-        BigDecimal amountLastHour = incrementAmount(senderId, amount, Duration.ofHours(1));
+        long now = System.currentTimeMillis();
+        String uniqueSuffix = now + ":" + UUID.randomUUID();
+        String txnKey = String.format(TXN_WINDOW_KEY, senderId);
+        String amountKey = String.format(AMOUNT_WINDOW_KEY, senderId);
 
-        log.debug("Velocity for {}: {}txn/10min, {}txn/1hr, ₹{}/1hr",
+        redisTemplate.opsForZSet().add(txnKey, uniqueSuffix, now);
+        redisTemplate.opsForZSet().add(amountKey, toPaise(amount) + ":" + uniqueSuffix, now);
+        redisTemplate.expire(txnKey, Duration.ofHours(2));
+        redisTemplate.expire(amountKey, Duration.ofHours(2));
+
+        return getMetrics(senderId, now);
+    }
+
+    public VelocityMetrics getMetrics(String senderId) {
+        return getMetrics(senderId, System.currentTimeMillis());
+    }
+
+    private VelocityMetrics getMetrics(String senderId, long now) {
+        String txnKey = String.format(TXN_WINDOW_KEY, senderId);
+        String amountKey = String.format(AMOUNT_WINDOW_KEY, senderId);
+        long oneHourAgo = now - Duration.ofHours(1).toMillis();
+        long tenMinutesAgo = now - Duration.ofMinutes(10).toMillis();
+
+        removeExpired(txnKey, oneHourAgo);
+        removeExpired(amountKey, oneHourAgo);
+
+        long count10min = countRange(txnKey, tenMinutesAgo, now);
+        long count1hour = countRange(txnKey, oneHourAgo, now);
+        BigDecimal amountLastHour = sumAmounts(amountKey, oneHourAgo, now);
+
+        log.debug("Velocity for {}: {}txn/10min, {}txn/1hr, {}/1hr",
                 senderId, count10min, count1hour, amountLastHour);
 
         return VelocityMetrics.builder()
@@ -66,69 +68,45 @@ public class VelocityService {
                 .build();
     }
 
-    /**
-     * Increment transaction count for a time window.
-     * Redis INCR is atomic — thread safe even with 1000 concurrent requests.
-     */
-    private long incrementCounter(String senderId, String window, Duration ttl) {
-        String key = String.format(TXN_COUNT_KEY, senderId, window);
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count == null) count = 1L;
-
-        // Set expiry only on first increment (when key is new)
-        if (count == 1) {
-            redisTemplate.expire(key, ttl);
-        }
-        return count;
+    private void removeExpired(String key, long oldestAllowedScore) {
+        redisTemplate.opsForZSet().removeRangeByScore(key, 0, oldestAllowedScore - 1);
     }
 
-    /**
-     * Accumulate transaction amounts for a time window.
-     * Stored as paise (multiply by 100) to avoid decimal issues in Redis.
-     */
-    private BigDecimal incrementAmount(String senderId, BigDecimal amount, Duration ttl) {
-        String key = String.format(AMOUNT_SUM_KEY, senderId, "1hour");
+    private long countRange(String key, long from, long to) {
+        Long count = redisTemplate.opsForZSet().count(key, from, to);
+        return count != null ? count : 0L;
+    }
 
-        // Store as paise (₹1 = 100 paise) to keep it as a Long in Redis
-        long amountInPaise = amount.multiply(new BigDecimal("100")).longValue();
-        Long totalPaise = redisTemplate.opsForValue().increment(key, amountInPaise);
-        if (totalPaise == null) totalPaise = amountInPaise;
-
-        if (totalPaise == amountInPaise) {
-            redisTemplate.expire(key, ttl);
+    private BigDecimal sumAmounts(String key, long from, long to) {
+        Set<String> entries = redisTemplate.opsForZSet().rangeByScore(key, from, to);
+        if (entries == null || entries.isEmpty()) {
+            return BigDecimal.ZERO;
         }
 
-        // Convert back to rupees
+        long totalPaise = entries.stream()
+                .mapToLong(this::parsePaise)
+                .sum();
+
         return new BigDecimal(totalPaise).divide(new BigDecimal("100"));
     }
 
-    public VelocityMetrics getMetrics(String senderId) {
-        String countKey = String.format(TXN_COUNT_KEY, senderId, "10min");
-        String hourKey = String.format(TXN_COUNT_KEY, senderId, "1hour");
-        String amountKey = String.format(AMOUNT_SUM_KEY, senderId, "1hour");
-
-        Long count10min = redisTemplate.opsForValue().get(countKey);
-        Long count1hour = redisTemplate.opsForValue().get(hourKey);
-        Long totalPaise = redisTemplate.opsForValue().get(amountKey);
-
-        long c10 = count10min != null ? count10min : 0L;
-        long c1h = count1hour != null ? count1hour : 0L;
-        BigDecimal amount = totalPaise != null
-                ? new BigDecimal(totalPaise).divide(new BigDecimal("100"))
-                : BigDecimal.ZERO;
-
-        return VelocityMetrics.builder()
-                .txnCountLast10Min(c10)
-                .txnCountLastHour(c1h)
-                .totalAmountLastHour(amount)
-                .isTxnCountSuspicious(c10 > MAX_TXN_PER_10MIN)
-                .isTxnRateSuspicious(c1h > MAX_TXN_PER_HOUR)
-                .isAmountSuspicious(amount.compareTo(MAX_AMOUNT_PER_HOUR) > 0)
-                .build();
+    private long parsePaise(String entry) {
+        int separator = entry.indexOf(':');
+        if (separator <= 0) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(entry.substring(0, separator));
+        } catch (NumberFormatException ex) {
+            log.warn("Invalid velocity amount entry: {}", entry);
+            return 0L;
+        }
     }
-    /**
-     * Result object containing all velocity metrics for a sender.
-     */
+
+    private long toPaise(BigDecimal amount) {
+        return amount.multiply(new BigDecimal("100")).longValue();
+    }
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor

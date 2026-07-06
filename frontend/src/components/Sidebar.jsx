@@ -24,6 +24,9 @@ const S = {
         fontSize: 13, fontWeight: active ? 500 : 400,
         color: active ? '#fff' : '#8892a4',
         background: active ? '#1e2235' : 'transparent',
+        border: 'none',
+        width: '100%',
+        textAlign: 'left',
         transition: 'all 0.15s',
     }),
     icon: { fontSize: 16, width: 18, textAlign: 'center' },
@@ -40,6 +43,7 @@ const S = {
 const NAV = [
     { path: '/', icon: '▦', label: 'Dashboard' },
     { path: '/transactions', icon: '⇄', label: 'Transactions' },
+    { path: '/cases', icon: '!', label: 'Cases' },
     { path: '/audit', icon: '☰', label: 'Audit Log' },
 ];
 
@@ -57,11 +61,12 @@ export default function Sidebar() {
 
             <nav>
                 {NAV.map(({ path, icon, label }) => (
-                    <div key={path} style={S.item(location.pathname === path)}
+                    <button key={path} type="button" style={S.item(location.pathname === path)}
+                         aria-current={location.pathname === path ? 'page' : undefined}
                          onClick={() => navigate(path)}>
                         <span style={S.icon}>{icon}</span>
                         {label}
-                    </div>
+                    </button>
                 ))}
             </nav>
 

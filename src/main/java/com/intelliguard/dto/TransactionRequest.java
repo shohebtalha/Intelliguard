@@ -40,4 +40,7 @@ public class TransactionRequest {
     private String deviceType;
 
     private String ipAddress;
+
+    @Size(max = 120, message = "Idempotency key must be at most 120 characters")
+    private String idempotencyKey;
 }

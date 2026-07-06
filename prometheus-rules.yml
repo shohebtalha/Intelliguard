@@ -1,0 +1,88 @@
+groups:
+  - name: intelliguard-platform
+    rules:
+      - alert: IntelliGuardBackendDown
+        expr: up{job="intelliguard-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "IntelliGuard backend is down"
+          description: "Prometheus cannot scrape the backend for more than 1 minute."
+
+      - alert: IntelliGuardHigh5xxRate
+        expr: sum(rate(http_server_requests_seconds_count{job="intelliguard-backend",status=~"5.."}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx rate"
+          description: "Backend 5xx rate is above 0.1 requests/sec for 5 minutes."
+
+      - alert: IntelliGuardHighP95Latency
+        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="intelliguard-backend"}[5m])) by (le)) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 HTTP latency"
+          description: "Backend p95 latency is above 500ms for 10 minutes."
+
+      - alert: IntelliGuardDatabasePoolSaturation
+        expr: hikaricp_connections_active{job="intelliguard-backend"} / hikaricp_connections_max{job="intelliguard-backend"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database pool saturation"
+          description: "HikariCP active connections are above 85% of max for 5 minutes."
+
+      - alert: IntelliGuardOutboxBacklog
+        expr: intelliguard_outbox_pending{job="intelliguard-backend"} > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox backlog is growing"
+          description: "More than 100 outbox events have been pending for at least 5 minutes."
+
+      - alert: IntelliGuardOpenCaseBacklog
+        expr: intelliguard_cases_open{job="intelliguard-backend"} > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud case backlog is high"
+          description: "More than 50 fraud cases are open for at least 15 minutes."
+
+      - alert: IntelliGuardModelFallbacks
+        expr: intelliguard_model_fallbacks_15m{job="intelliguard-backend"} > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ML model fallback spike"
+          description: "More than 10 model fallback inferences occurred in the last 15 minutes."
+
+      - alert: IntelliGuardFraudDecisionLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(intelliguard_fraud_decision_latency_seconds_bucket{job="intelliguard-backend"}[5m])) by (le)) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud decision p95 latency is high"
+          description: "Fraud decision p95 latency is above 250ms for 10 minutes."
+
+      - alert: IntelliGuardBlockRateSpike
+        expr: |
+          (
+            sum(rate(intelliguard_fraud_decisions_total{job="intelliguard-backend",decision="BLOCK"}[10m]))
+            /
+            clamp_min(sum(rate(intelliguard_fraud_decisions_total{job="intelliguard-backend"}[10m])), 0.001)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud block-rate spike"
+          description: "More than 50% of fraud decisions are BLOCK over the last 10 minutes."

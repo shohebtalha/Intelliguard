@@ -5,6 +5,7 @@ import com.intelliguard.entity.AuditLog;
 import com.intelliguard.service.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,12 +23,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/audit")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AuditController {
 
     private final AuditLogService auditLogService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<List<AuditLog>>> getAllAuditLogs() {
         List<AuditLog> logs = auditLogService.getAllAuditLogs();
         return ResponseEntity.ok(
@@ -35,6 +36,7 @@ public class AuditController {
     }
 
     @GetMapping("/transaction/{transactionId}")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<List<AuditLog>>> getByTransaction(
             @PathVariable String transactionId) {
         List<AuditLog> logs = auditLogService.getAuditLogsByTransaction(transactionId);
@@ -42,6 +44,7 @@ public class AuditController {
     }
 
     @GetMapping("/sender/{senderId}")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<List<AuditLog>>> getBySender(
             @PathVariable String senderId) {
         List<AuditLog> logs = auditLogService.getAuditLogsBySender(senderId);

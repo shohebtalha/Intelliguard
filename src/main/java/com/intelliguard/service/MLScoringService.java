@@ -30,6 +30,8 @@ import java.util.Collections;
 public class MLScoringService {
 
     private final FeatureEngineService featureEngineService;
+    private final ModelGovernanceService modelGovernanceService;
+    public static final String MODEL_VERSION = "xgboost-v1.0-onnx";
 
     private OrtEnvironment environment;
     private OrtSession session;
@@ -45,14 +47,14 @@ public class MLScoringService {
         try {
             environment = OrtEnvironment.getEnvironment();
 
-            // Load model.onnx from src/main/resources/ml/
-            ClassPathResource resource = new ClassPathResource("ml/model.onnx");
+            ClassPathResource resource = new ClassPathResource("ML/model.onnx");
             byte[] modelBytes = resource.getInputStream().readAllBytes();
 
             OrtSession.SessionOptions options = new OrtSession.SessionOptions();
             session = environment.createSession(modelBytes, options);
 
             modelLoaded = true;
+            modelGovernanceService.ensureChampionRegistered(MODEL_VERSION, "classpath:ML/model.onnx");
             log.info("✅ ML model loaded successfully. Input: {} Output: {}",
                     session.getInputNames(),
                     session.getOutputNames());
@@ -70,8 +72,11 @@ public class MLScoringService {
      * If model isn't loaded, returns -1.0 (signals rule engine to ignore ML score).
      */
     public double predictFraudProbability(Transaction transaction) {
+        long start = System.currentTimeMillis();
         if (!modelLoaded || session == null) {
             log.debug("ML model not available, skipping ML score");
+            modelGovernanceService.recordInference(
+                    transaction, MODEL_VERSION, -1.0, System.currentTimeMillis() - start, true, "MODEL_NOT_LOADED");
             return -1.0;
         }
 
@@ -81,37 +86,38 @@ public class MLScoringService {
 
             // Step 2: Create ONNX tensor — shape [1, 8] (1 sample, 8 features)
             long[] shape = {1, features.length};
-            OnnxTensor inputTensor = OnnxTensor.createTensor(
+            try (OnnxTensor inputTensor = OnnxTensor.createTensor(
                     environment,
                     new float[][]{features}
-            );
+            )) {
+                // Step 3: Run inference
+                String inputName = session.getInputNames().iterator().next();
+                try (OrtSession.Result result = session.run(
+                        Collections.singletonMap(inputName, inputTensor)
+                )) {
+                    // Step 4: Extract probability of class 1 (fraud)
+                    // Output is a Map<Long, Float> of {class_id -> probability}
+                    OnnxValue probabilitiesValue = result.get("probabilities").orElseThrow();
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<Long, Float> probMap =
+                            (java.util.Map<Long, Float>) probabilitiesValue.getValue();
 
-            // Step 3: Run inference
-            String inputName = session.getInputNames().iterator().next();
-            OrtSession.Result result = session.run(
-                    Collections.singletonMap(inputName, inputTensor)
-            );
+                    double fraudProbability = probMap.getOrDefault(1L, 0.0f).doubleValue();
 
-            // Step 4: Extract probability of class 1 (fraud)
-            // Output is a Map<Long, Float> of {class_id -> probability}
-            OnnxValue probabilitiesValue = result.get("probabilities").orElseThrow();
-            @SuppressWarnings("unchecked")
-            java.util.Map<Long, Float> probMap =
-                    (java.util.Map<Long, Float>) probabilitiesValue.getValue();
+                    log.debug("ML fraud probability for sender {}: {}",
+                            transaction.getSenderId(), fraudProbability);
 
-            double fraudProbability = probMap.getOrDefault(1L, 0.0f).doubleValue();
-
-            log.debug("ML fraud probability for sender {}: {}",
-                    transaction.getSenderId(), fraudProbability);
-
-            // Cleanup
-            inputTensor.close();
-            result.close();
-
-            return fraudProbability;
+                    modelGovernanceService.recordInference(
+                            transaction, MODEL_VERSION, fraudProbability,
+                            System.currentTimeMillis() - start, false, null);
+                    return fraudProbability;
+                }
+            }
 
         } catch (Exception e) {
             log.error("ML inference failed: {}", e.getMessage());
+            modelGovernanceService.recordInference(
+                    transaction, MODEL_VERSION, -1.0, System.currentTimeMillis() - start, true, e.getMessage());
             return -1.0; // fallback to rules only
         }
     }
@@ -129,5 +135,9 @@ public class MLScoringService {
 
     public boolean isModelLoaded() {
         return modelLoaded;
+    }
+
+    public String getModelVersion() {
+        return MODEL_VERSION;
     }
 }

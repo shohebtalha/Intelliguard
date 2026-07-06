@@ -1,0 +1,160 @@
+{
+  "uid": "intelliguard-overview",
+  "title": "IntelliGuard Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "timezone": "browser",
+  "tags": ["intelliguard", "fraud", "spring-boot"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "HTTP Requests / sec",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"intelliguard-backend\"}[5m]))",
+          "legendFormat": "rps"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "5xx Error Rate",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"intelliguard-backend\", status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx/sec"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 HTTP Latency",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"intelliguard-backend\"}[5m])) by (le, uri))",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM Heap Used",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(jvm_memory_used_bytes{job=\"intelliguard-backend\", area=\"heap\"})",
+          "legendFormat": "heap used"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(jvm_memory_max_bytes{job=\"intelliguard-backend\", area=\"heap\"})",
+          "legendFormat": "heap max"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Database Pool Usage",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "hikaricp_connections_active{job=\"intelliguard-backend\"}",
+          "legendFormat": "active"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "hikaricp_connections_idle{job=\"intelliguard-backend\"}",
+          "legendFormat": "idle"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process CPU",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 6},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "process_cpu_usage{job=\"intelliguard-backend\"}",
+          "legendFormat": "cpu"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka Producer Send Rate",
+      "gridPos": {"x": 12, "y": 14, "w": 12, "h": 6},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(rate(kafka_producer_record_send_total{job=\"intelliguard-backend\"}[5m]))",
+          "legendFormat": "records/sec"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Fraud Decisions by Outcome",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 7},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "sum(rate(intelliguard_fraud_decisions_total{job=\"intelliguard-backend\"}[5m])) by (decision)",
+          "legendFormat": "{{decision}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Fraud Decision p95 Latency",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 7},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "Prometheus"},
+          "expr": "histogram_quantile(0.95, sum(rate(intelliguard_fraud_decision_latency_seconds_bucket{job=\"intelliguard-backend\"}[5m])) by (le, decision))",
+          "legendFormat": "{{decision}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    }
+  ]
+}

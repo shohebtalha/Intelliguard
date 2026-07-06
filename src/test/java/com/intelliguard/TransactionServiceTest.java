@@ -1,6 +1,5 @@
 package com.intelliguard;
 
-import com.intelliguard.Kafka.TransactionProducer;
 import com.intelliguard.dto.TransactionMapper;
 import com.intelliguard.dto.TransactionRequest;
 import com.intelliguard.dto.TransactionResponse;
@@ -9,7 +8,11 @@ import com.intelliguard.engine.RuleEngine;
 import com.intelliguard.entity.Transaction;
 import com.intelliguard.repository.TransactionRepository;
 import com.intelliguard.service.AuditLogService;
+import com.intelliguard.service.CurrentUserService;
+import com.intelliguard.service.FraudCaseService;
+import com.intelliguard.service.FraudMetricsService;
 import com.intelliguard.service.MLScoringService;
+import com.intelliguard.service.OutboxEventService;
 import com.intelliguard.service.TransactionService;
 import com.intelliguard.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +45,22 @@ class TransactionServiceTest {
     private RuleEngine ruleEngine;
 
     @Mock
-    private TransactionProducer transactionProducer;
+    private OutboxEventService outboxEventService;
 
     @Mock
     private MLScoringService mlScoringService;
 
     @Mock
     private AuditLogService auditLogService;
+
+    @Mock
+    private CurrentUserService currentUserService;
+
+    @Mock
+    private FraudCaseService fraudCaseService;
+
+    @Mock
+    private FraudMetricsService fraudMetricsService;
 
     @InjectMocks
     private TransactionService transactionService;
@@ -67,6 +79,7 @@ class TransactionServiceTest {
                 .deviceType("MOBILE")
                 .ipAddress("192.168.1.1")
                 .build();
+        when(currentUserService.tenantId()).thenReturn("demo-bank");
     }
 
     @Test

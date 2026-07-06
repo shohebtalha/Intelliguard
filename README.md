@@ -1,233 +1,348 @@
-# 🛡️ IntelliGuard — AI-Powered Real-Time Fraud Detection Engine
+# IntelliGuard
 
-<div align="center">
+**AI-powered real-time fraud detection platform for financial transactions.**
 
-![Java](https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.0-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql&logoColor=white)
-![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-3.6-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-7.2-DC382D?style=for-the-badge&logo=redis&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+IntelliGuard combines deterministic fraud rules, Redis velocity features, ONNX model inference, tenant-scoped authorization, analyst case management, transactional event publishing, tamper-evident audit logs, model governance, and operational observability.
 
-**Detects fraudulent financial transactions in under 100ms using ML scoring, rule engine, and real-time velocity checks.**
+The project is built as a production-oriented **modular monolith**: one runnable codebase, clear domain boundaries, and realistic extraction points for auth, fraud decisions, case management, audit, model serving, and analytics.
 
-[Features](#-features) • [Architecture](#-architecture) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [API Docs](#-api-documentation) • [Screenshots](#-screenshots)
+## Contents
 
-</div>
+- [Problem](#problem)
+- [What IntelliGuard Does](#what-intelliguard-does)
+- [Architecture](#architecture)
+- [Implemented Capabilities](#implemented-capabilities)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Verification](#verification)
+- [API Overview](#api-overview)
+- [Observability](#observability)
+- [Project Structure](#project-structure)
+- [Production Tradeoffs](#production-tradeoffs)
+- [Interview Discussion Points](#interview-discussion-points)
+- [Roadmap](#roadmap)
 
----
-## 🚀 Quick Start (One Command)
+## Problem
 
-```bash
-git clone https://github.com/shohebtalha/intelliguard.git
-cd intelliguard
-docker-compose up -d
-```
+Banks and fintech companies lose significant money to payment fraud. Simple rule-based systems are brittle: they block too many legitimate users, miss coordinated attacks, and are hard to adapt as fraud patterns change.
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Dashboard | http://localhost:3000 | admin / password123 |
-| API Docs | http://localhost:8080/swagger-ui.html | — |
-| Grafana | http://localhost:3001 | admin / admin |
-| Health | http://localhost:8080/api/health/status | — |
+IntelliGuard addresses this by combining multiple detection layers:
 
-## 🚨 The Problem
+- deterministic rules for high-confidence policy checks;
+- Redis-backed velocity windows for behavioral anomalies;
+- in-process ONNX model scoring;
+- tenant-scoped security boundaries;
+- analyst case management for suspicious transactions;
+- audit and observability systems that support investigation and operations.
 
-Banks and fintech companies lose **billions annually** to payment fraud. Traditional rule-based systems (block if amount > threshold) are static, slow, and easy to bypass. They either block too many legitimate transactions (false positives hurt users) or miss sophisticated fraud patterns entirely.
+The goal is not just to return a fraud score. The goal is to model the surrounding production system a financial company would need to operate, investigate, audit, and monitor fraud decisions.
 
-**IntelliGuard solves this** with a multi-layered detection system that combines:
-- Machine learning fraud scoring
-- Real-time velocity analysis
-- Behavioral pattern detection
-- Graph-based fraud ring detection
+## What IntelliGuard Does
 
-All in **under 100ms per transaction** — fast enough to block fraud before the payment completes.
+For each submitted transaction, IntelliGuard:
 
----
+1. Validates the request and applies idempotency protection.
+2. Records velocity features in Redis.
+3. Evaluates deterministic fraud rules.
+4. Runs ONNX model inference when the model is available.
+5. Combines rule and ML signals into `APPROVE`, `REVIEW`, or `BLOCK`.
+6. Persists the decision in PostgreSQL.
+7. Emits Kafka events through a transactional outbox.
+8. Creates an analyst case for `REVIEW` and `BLOCK` decisions.
+9. Writes a tamper-evident audit record.
+10. Records business and model metrics for Prometheus/Grafana.
 
-## ✨ Features
+## Architecture
 
-### Core Detection Engine
-- **ML Fraud Scoring** — XGBoost model scores every transaction 0.0 (safe) to 1.0 (fraud) in real-time using ONNX Runtime
-- **Rule Engine** — Configurable fraud rules (country blocklist, amount thresholds, night-time detection) using a Strategy pattern
-- **Velocity Checks** — Redis-powered sliding window detects: too many transactions, amount spikes, impossible travel
-- **SHAP Explainability** — Every blocked transaction comes with a human-readable explanation of exactly why it was flagged
-
-### Real-Time Pipeline
-- **Apache Kafka** — All transactions flow through Kafka topics for async, fault-tolerant processing at 10M+ events/day
-- **WebSocket Alerts** — Live fraud alerts pushed to the dashboard in real-time, no polling
-- **Dead Letter Queue** — Failed transactions are never lost; retried automatically
-
-### Security & Compliance
-- **JWT Authentication** — All API endpoints secured with JSON Web Tokens
-- **Immutable Audit Log** — Every fraud decision permanently logged with timestamp, model version, score, and analyst
-- **Role-Based Access** — Analyst, Manager, and Admin roles with different permissions
-
-### Observability
-- **Prometheus + Grafana** — Real-time dashboards showing fraud rate, P99 latency, false positive rate
-- **Distributed Tracing** — Full request trace per transaction from API → Kafka → ML scorer → decision
-- **Health Endpoints** — Spring Actuator exposes `/actuator/health` for production monitoring
-
-### React Dashboard
-- Live transaction feed with real-time status updates
-- SHAP explainability panel — visual breakdown of why each transaction was flagged
-- Fraud graph visualization — see connected fraudulent accounts
-- Rule editor — add/modify fraud rules without code changes
-- Audit log viewer with search and filters
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    LAYER 1 — INGESTION                      │
-│         REST API │ gRPC │ WebSocket │ Batch Upload          │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                 LAYER 2 — EVENT STREAMING                   │
-│    Apache Kafka: txn.raw / txn.enriched / fraud.alerts      │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│              LAYER 3 — JAVA PROCESSING CORE                 │
-│   Feature Engine │ ML Scorer │ Rule Engine (Drools)         │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│               LAYER 4 — DECISION AGGREGATOR                 │
-│      Weighted ensemble → APPROVE / REVIEW / BLOCK           │
-│                 P99 latency: < 100ms                        │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  LAYER 5 — STORAGE                          │
-│  PostgreSQL │ Redis │ Elasticsearch │ Cassandra │ Neo4j     │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    UI[React Analyst Console] --> API[Spring Boot API]
+    API --> Auth[JWT + Refresh Rotation]
+    API --> Rules[Rule Engine]
+    API --> ML[ONNX Runtime]
+    API --> Redis[(Redis Velocity Windows)]
+    API --> Postgres[(PostgreSQL + Flyway)]
+    API --> Outbox[(Transactional Outbox)]
+    Outbox --> Kafka[(Kafka)]
+    API --> Cases[Case Management]
+    API --> Audit[Hash-Chained Audit]
+    API --> Governance[Model Registry + Drift Snapshots]
+    API --> Metrics[Micrometer / Prometheus]
+    Metrics --> Grafana[Grafana Dashboards]
 ```
 
 ### Decision Flow
 
-```
-Transaction arrives
-       │
-       ▼
- Feature Engineering (150+ features computed)
-       │
-       ├──→ ML Scorer (XGBoost via ONNX) ──→ fraud score 0.0–1.0
-       │
-       ├──→ Rule Engine (Drools DSL) ──→ rule violations
-       │
-       └──→ Velocity Check (Redis) ──→ behavioral anomalies
-                    │
-                    ▼
-          Decision Aggregator
-          (weighted combination)
-                    │
-          ┌─────────┼─────────┐
-          ▼         ▼         ▼
-       APPROVE   REVIEW    BLOCK
-          │         │         │
-          └─────────┴─────────┘
-                    │
-              Audit Log + Kafka Alert
+```mermaid
+flowchart TD
+    A[Transaction request] --> B[Validation + idempotency]
+    B --> C[Redis velocity update]
+    C --> D[Feature extraction]
+    D --> E[Rule engine]
+    D --> F[ONNX model scoring]
+    E --> G[Weighted decision aggregation]
+    F --> G
+    G --> H{Decision}
+    H -->|APPROVE| I[Persist transaction]
+    H -->|REVIEW| J[Open analyst case]
+    H -->|BLOCK| J
+    I --> K[Outbox event]
+    J --> K
+    K --> L[Kafka publish worker]
+    I --> M[Hash-chained audit log]
+    I --> N[Prometheus metrics]
 ```
 
----
+More detail:
 
-## 🛠️ Tech Stack
+- [Production Architecture](docs/PRODUCTION_ARCHITECTURE.md)
+- [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
+- [Observability](docs/OBSERVABILITY.md)
+- [Demo Script](docs/DEMO_SCRIPT.md)
+
+## Implemented Capabilities
+
+### Fraud Detection Engine
+
+- Transaction submission with optional `Idempotency-Key`.
+- Rule engine using Spring-discovered `FraudRule` strategies.
+- Fraud rules:
+  - country blocklist;
+  - amount threshold;
+  - amount spike;
+  - night-time activity;
+  - Redis velocity;
+  - unknown device.
+- Redis sorted-set rolling windows for transaction velocity and amount velocity.
+- Feature engine for ONNX input generation.
+- ONNX Runtime integration for in-process model inference.
+- Weighted rule + ML decisioning into `APPROVE`, `REVIEW`, or `BLOCK`.
+- Explanation endpoint with feature values and feature-importance-style contributions.
+
+### Security And Access Control
+
+- Spring Security with stateless JWT access tokens.
+- JWT issuer, audience, role, tenant, and token ID claims.
+- Refresh-token rotation with hashed storage.
+- Refresh-token family revocation for replay/reuse detection.
+- BCrypt password hashing.
+- RBAC for analyst, manager, and admin workflows.
+- Tenant-scoped transaction, audit, case, and idempotency access.
+- Trusted-proxy-aware API and login rate limiting.
+- Configurable CORS.
+- Security headers.
+- Restricted health-detail defaults.
+- Secrets externalized through environment variables.
+
+### Reliability And Data Integrity
+
+- PostgreSQL persistence.
+- Flyway-owned schema.
+- Hibernate validation instead of auto-mutating production schema.
+- Database check constraints for critical enum/range fields.
+- Tenant-scoped indexes.
+- Optimistic locking on mutable aggregates.
+- Transactional outbox for Kafka publishing.
+- Multi-worker-safe outbox claiming using `FOR UPDATE SKIP LOCKED`.
+- Retry backoff and terminal failure state for outbox events.
+
+### Analyst Operations
+
+- Automatic case creation for `REVIEW` and `BLOCK` decisions.
+- Case queue with status filters.
+- Case assignment.
+- Investigation notes.
+- Resolution workflow for confirmed fraud and false positives.
+- Resolved cases are protected from further mutation.
+
+### Audit And Compliance
+
+- Immutable-style audit records for fraud decisions.
+- Audit records include decision, score, model version, timing, actor, and reason.
+- Hash chain using `previousHash` and `recordHash` to detect tampering.
+- Tenant-scoped audit lookup by transaction and sender.
+
+### Model Governance
+
+- Model registry table.
+- Champion model registration at startup.
+- Inference metrics for:
+  - model version;
+  - transaction;
+  - latency;
+  - fraud probability;
+  - fallback status;
+  - error message.
+- Drift snapshots for:
+  - sample count;
+  - average score;
+  - fallback rate;
+  - high-risk score rate;
+  - `OK`, `WATCH`, `ALERT`, or `INSUFFICIENT_DATA` state.
+
+### Observability
+
+- Request trace ID propagation through `X-Trace-Id`.
+- SLF4J MDC trace correlation.
+- Spring Actuator and Micrometer Prometheus endpoint.
+- Custom business metrics:
+  - `intelliguard_fraud_decisions_total`;
+  - `intelliguard_fraud_decision_latency_seconds`;
+  - `intelliguard_outbox_pending`;
+  - `intelliguard_cases_open`;
+  - `intelliguard_model_fallbacks_15m`.
+- Prometheus alert rules.
+- Grafana datasource and dashboard provisioning.
+
+### Frontend
+
+- React/Vite analyst console.
+- Login page.
+- Dashboard.
+- Transaction list.
+- Case-management page.
+- Audit page.
+- Protected routes.
+- Accessible labels for login fields.
+- Keyboard-accessible sidebar navigation.
+- Playwright smoke tests.
+
+### CI And Testing
+
+- GitHub Actions for backend tests and packaging.
+- Frontend build and Playwright smoke tests.
+- Docker image builds for backend and frontend.
+- CodeQL analysis.
+- Dependency review on pull requests.
+- Unit tests for rule engine, transaction flow, refresh-token rotation, outbox behavior, case workflow, audit hash chain, and model governance.
+- Testcontainers integration-test harness for Docker-backed infrastructure tests.
+
+## Tech Stack
 
 | Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Language** | Java 21 | Core backend language |
-| **Framework** | Spring Boot 4.1 | REST APIs, dependency injection, auto-config |
-| **ORM** | Spring Data JPA + Hibernate | Database operations without raw SQL |
-| **Database** | PostgreSQL 16 | Primary data store — transactions, audit logs |
-| **Cache** | Redis 7.2 | Velocity checks, sliding window counters |
-| **Streaming** | Apache Kafka 3.6 | Async event pipeline, 10M+ events/day |
-| **ML Runtime** | ONNX Runtime (Java) | In-process model inference, no network hop |
-| **Explainability** | SHAP | Why was this transaction flagged? |
-| **Graph DB** | Neo4j | Fraud ring detection — connected account analysis |
-| **Search** | Elasticsearch | Transaction pattern search |
-| **Security** | Spring Security + JWT | Authentication and authorization |
-| **Rules** | Drools | Configurable fraud rules DSL |
-| **Frontend** | React 18 + Tailwind | Dashboard UI |
-| **Charts** | Recharts | Live fraud metrics visualization |
-| **Containerization** | Docker + Docker Compose | One-command startup |
-| **Monitoring** | Prometheus + Grafana | Production metrics and alerting |
-| **Tracing** | Jaeger | Distributed request tracing |
-| **CI/CD** | GitHub Actions | Automated build, test, deploy |
-| **Docs** | Swagger / OpenAPI 3 | Interactive API documentation |
-| **Testing** | JUnit 5 + Testcontainers | Unit and integration tests |
+| --- | --- | --- |
+| Backend | Java 17, Spring Boot 3.2 | REST APIs, dependency injection, application runtime |
+| Security | Spring Security, JWT, BCrypt | Authentication, authorization, password hashing |
+| Database | PostgreSQL 16, Spring Data JPA, Flyway | Transactions, users, cases, audit, model governance |
+| Cache | Redis 7.2 | Velocity checks and rolling windows |
+| Eventing | Apache Kafka | Transaction and fraud alert events |
+| Reliability | Transactional outbox | Atomic event persistence and async publish |
+| ML Runtime | ONNX Runtime | In-process model inference |
+| Observability | Actuator, Micrometer, Prometheus, Grafana | Metrics, dashboards, alerts |
+| Frontend | React, Vite, Axios | Analyst console |
+| Testing | JUnit 5, Mockito, Testcontainers, Playwright | Unit, integration harness, frontend smoke tests |
+| Packaging | Docker, Docker Compose | Local full-stack runtime |
+| CI | GitHub Actions, CodeQL, dependency review | Build, test, scan |
 
----
-
-## 🚀 Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- Java 21+
-- Docker Desktop
+- Java 17+
 - Maven 3.9+
-- Node.js 20+ (for frontend)
+- Docker Desktop
+- Node.js 20+
 
-### 1. Clone the repository
+### Run The Full Stack
 
-```bash
-git clone https://github.com/yourusername/intelliguard.git
-cd intelliguard
-```
-
-### 2. Start infrastructure with Docker
+1. Create a local environment file.
 
 ```bash
-docker-compose up -d
+cp .env.example .env
 ```
 
-This starts PostgreSQL, Redis, Kafka, Elasticsearch, and Grafana automatically.
+2. Replace placeholder secrets in `.env`.
 
-### 3. Run the backend
+3. Start the stack.
 
 ```bash
-mvn spring-boot:run
+docker-compose up --build
 ```
 
-Backend starts at `http://localhost:8080`
+Services:
 
-### 4. Run the frontend
+| Service | URL |
+| --- | --- |
+| Frontend | http://localhost:3000 |
+| Backend | http://localhost:8080 |
+| Swagger | http://localhost:8080/swagger-ui.html |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 |
+| Health | http://localhost:8080/api/health/status |
+
+Demo data is disabled by default. To seed local demo users and transactions:
+
+```env
+DEMO_SEED_DATA=true
+```
+
+Seeded users are for local demos only:
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Admin | `admin` | `password123` |
+| Analyst | `analyst` | `analyst123` |
+| Manager | `manager` | `manager123` |
+
+## Verification
+
+Backend unit tests:
+
+```bash
+mvn test -B
+```
+
+Frontend build:
 
 ```bash
 cd frontend
-npm install
-npm start
+npm run build
 ```
 
-Dashboard opens at `http://localhost:3000`
-
-### 5. Load demo data
+Frontend smoke tests:
 
 ```bash
-mvn exec:java -Dexec.mainClass="com.intelliguard.seed.DemoDataSeeder"
+cd frontend
+npx playwright install chromium
+npm run test:e2e
 ```
 
-This creates 10,000 sample transactions including known fraud patterns.
+Docker-backed integration profile:
 
----
+```bash
+mvn verify -Pintegration-tests
+```
 
-## 📡 API Documentation
+## API Overview
 
-Full interactive docs available at: `http://localhost:8080/swagger-ui.html`
+Swagger UI is available at:
 
-### Key Endpoints
+```text
+http://localhost:8080/swagger-ui.html
+```
 
-#### Submit a Transaction
+### Authentication
+
+```http
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+```
+
+Login returns an access token and refresh token. Refresh tokens are rotated and stored as hashes.
+
+### Transactions
+
 ```http
 POST /api/transactions
-Content-Type: application/json
-Authorization: Bearer <token>
+GET /api/transactions?status=BLOCK&page=0&size=20
+GET /api/transactions/{id}
+GET /api/transactions/{id}/explain
+```
 
+Example request:
+
+```json
 {
   "senderId": "USER_001",
   "receiverId": "USER_002",
@@ -240,151 +355,149 @@ Authorization: Bearer <token>
 }
 ```
 
-**Response:**
-```json
-{
-  "transactionId": "a3f8c2d1-4b9e-11ee-be56-0242ac120002",
-  "status": "BLOCKED",
-  "fraudScore": 0.94,
-  "decisionTimeMs": 67,
-  "flagReason": "CountryBlocklistRule, VelocitySpike, UnknownDevice",
-  "shapExplanation": {
-    "newCountry": 0.31,
-    "velocitySpike": 0.24,
-    "unknownDevice": 0.18,
-    "amountAnomaly": 0.14,
-    "nightTransaction": 0.07
-  }
-}
-```
+### Case Management
 
-#### Get All Transactions
 ```http
-GET /api/transactions?status=BLOCKED&page=0&size=20
-Authorization: Bearer <token>
+GET /api/cases
+GET /api/cases/{id}
+PATCH /api/cases/{id}/assign
+POST /api/cases/{id}/notes
+PATCH /api/cases/{id}/resolve
 ```
 
-#### Get SHAP Explanation
+Suspicious transactions automatically create cases for analyst review.
+
+### Audit
+
 ```http
-GET /api/transactions/{id}/explain
-Authorization: Bearer <token>
+GET /api/audit
+GET /api/audit/transaction/{transactionId}
+GET /api/audit/sender/{senderId}
 ```
 
-#### Health Check
+Audit records include `previousHash` and `recordHash` for tamper-evident verification.
+
+### Model Governance
+
 ```http
-GET /actuator/health
+GET /api/models
+POST /api/models/drift-snapshots
+GET /api/models/drift-snapshots
 ```
 
----
+## Observability
 
-## 📊 Performance
+Provisioned monitoring includes:
 
-| Metric | Target | Achieved |
-|--------|--------|----------|
-| P50 Latency | < 50ms | 34ms |
-| P99 Latency | < 100ms | 67ms |
-| Throughput | 10,000 TPS | 12,400 TPS |
-| False Positive Rate | < 0.1% | 0.08% |
-| Model Accuracy | > 95% | 97.3% |
-| Uptime | 99.99% | 99.99% |
+- Prometheus scrape config: [prometheus.yml](prometheus.yml)
+- Prometheus rules: [prometheus-rules.yml](prometheus-rules.yml)
+- Grafana datasource provisioning: [grafana/provisioning/datasources/prometheus.yml](grafana/provisioning/datasources/prometheus.yml)
+- Grafana dashboard provisioning: [grafana/provisioning/dashboards/dashboards.yml](grafana/provisioning/dashboards/dashboards.yml)
+- Grafana overview dashboard: [grafana/dashboards/intelliguard-overview.json](grafana/dashboards/intelliguard-overview.json)
 
----
+Dashboards cover:
 
-## 🔍 Fraud Detection Rules
+- HTTP request rate;
+- HTTP 5xx rate;
+- p95 latency;
+- JVM heap usage;
+- HikariCP connection pool usage;
+- Kafka producer send rate;
+- fraud decisions by outcome;
+- fraud decision p95 latency.
 
-IntelliGuard uses a layered detection approach:
+Alerts cover:
 
-| Rule | Description | Action |
-|------|-------------|--------|
-| `CountryBlocklistRule` | Transaction from high-risk country | BLOCK |
-| `AmountThresholdRule` | Single transaction > ₹5,00,000 | REVIEW |
-| `VelocityRule` | > 10 transactions in 10 minutes | BLOCK |
-| `AmountSpikeRule` | Amount > 10x sender's average | REVIEW |
-| `NightTimeRule` | Large transfer between 1am–4am | REVIEW |
-| `ImpossibleTravelRule` | Two transactions from countries > 2hrs apart | BLOCK |
-| `UnknownDeviceRule` | New device + large amount | REVIEW |
-| `FraudRingRule` | Account connected to known fraudsters (Neo4j) | BLOCK |
+- backend down;
+- high 5xx rate;
+- high p95 HTTP latency;
+- DB pool saturation;
+- outbox backlog;
+- open case backlog;
+- model fallback spike;
+- fraud decision latency;
+- block-rate spike.
 
----
+## Project Structure
 
-## 🗂️ Project Structure
-
-```
+```text
 intelliguard/
-├── src/main/java/com/intelliguard/
-│   ├── controller/          # REST API endpoints
-│   ├── service/             # Business logic
-│   ├── repository/          # Database queries
-│   ├── entity/              # Database table definitions
-│   ├── dto/                 # Request/Response shapes
-│   ├── engine/              # Fraud rule engine
-│   │   ├── rules/           # Individual fraud rules
-│   │   └── RuleEngine.java  # Orchestrates all rules
-│   ├── ml/                  # ML scoring service
-│   │   ├── FeatureEngine.java
-│   │   └── MLScoringService.java
-│   ├── kafka/               # Event producers and consumers
-│   ├── exception/           # Global error handling
-│   └── config/              # Spring configuration
-├── src/test/                # Unit and integration tests
-├── frontend/                # React dashboard
-├── docker-compose.yml       # Full infrastructure setup
-├── Dockerfile               # Backend container
-└── .github/workflows/       # CI/CD pipeline
+|-- src/main/java/com/intelliguard/
+|   |-- config/          # Security, Redis, Kafka, OpenAPI, tracing, observability
+|   |-- controller/      # REST API endpoints
+|   |-- dto/             # Request/response contracts
+|   |-- engine/          # Rule engine and fraud rules
+|   |-- entity/          # JPA entities
+|   |-- exception/       # Error handling
+|   |-- Kafka/           # Kafka producer/consumer handlers
+|   |-- repository/      # Spring Data repositories
+|   `-- service/         # Application/domain services
+|-- src/main/resources/
+|   |-- db/migration/    # Flyway schema
+|   `-- ML/model.onnx    # ONNX fraud model artifact
+|-- src/test/java/       # Unit tests and Testcontainers harness
+|-- frontend/            # React analyst console and Playwright tests
+|-- grafana/             # Grafana provisioning and dashboards
+|-- docs/                # Architecture, threat model, observability, demo script
+|-- docker-compose.yml
+|-- prometheus.yml
+|-- prometheus-rules.yml
+`-- .github/workflows/
 ```
 
----
+## Production Tradeoffs
 
-## 🧪 Running Tests
+Implemented deliberately:
 
-```bash
-# Unit tests
-mvn test
+- Modular monolith instead of premature microservices.
+- Synchronous decision path so payment authorization receives an immediate decision.
+- Outbox instead of direct Kafka publish inside the request transaction.
+- Tenant-scoped data access in service/repository methods.
+- Hash-chained audit as a practical tamper-evidence baseline.
+- Feature-importance-style explanations rather than claiming a full SHAP pipeline.
 
-# Integration tests (requires Docker)
-mvn verify
+Not claimed as implemented:
 
-# Test coverage report
-mvn jacoco:report
-# Open target/site/jacoco/index.html
-```
+- Drools rule DSL;
+- Neo4j fraud-ring graph detection;
+- Elasticsearch/OpenSearch transaction search;
+- Cassandra storage;
+- Jaeger distributed tracing;
+- gRPC ingestion;
+- WebSocket/SSE live alerts;
+- production SHAP pipeline;
+- Kubernetes/Helm/Terraform deployment;
+- published load-test results.
 
----
+These are documented as possible extensions rather than presented as completed features.
 
-## 📈 Monitoring
+## Interview Discussion Points
 
-Once running, access:
+- Why a modular monolith is the right current boundary.
+- Where auth, model serving, audit, and case management would split into services.
+- How tenant isolation prevents IDOR.
+- How refresh-token rotation limits session theft blast radius.
+- How trusted-proxy-aware rate limiting avoids spoofed `X-Forwarded-For`.
+- How `FOR UPDATE SKIP LOCKED` makes the outbox multi-worker safe.
+- What guarantees the outbox does and does not provide.
+- Why fraud decisioning remains synchronous.
+- How Redis velocity windows behave under hot senders.
+- How audit hash chaining detects tampering.
+- How model drift snapshots are computed.
+- How business metrics differ from generic JVM metrics.
+- What would break first at 1,000 TPS.
 
-| Tool | URL | Purpose |
-|------|-----|---------|
-| Grafana | http://localhost:3001 | Fraud metrics dashboard |
-| Prometheus | http://localhost:9090 | Raw metrics |
-| Jaeger | http://localhost:16686 | Distributed tracing |
-| Swagger | http://localhost:8080/swagger-ui.html | API docs |
-| Kafka UI | http://localhost:8090 | View Kafka topics live |
+## Roadmap
 
----
+High-impact future work:
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feat/add-new-rule`)
-3. Commit your changes (`git commit -m 'feat: add impossible travel rule'`)
-4. Push to the branch (`git push origin feat/add-new-rule`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-
-Built with ❤️ to solve a real ₹billion problem
-
-⭐ Star this repo if you found it useful
-
-</div>
+- OAuth2/OIDC integration with an external identity provider.
+- WORM or external immutable audit sink.
+- Full SHAP explainability pipeline.
+- Automated retraining pipeline and offline validation reports.
+- Case SLA timers and escalation policy.
+- OpenSearch analytics for large-scale investigation queries.
+- Optional graph service for fraud-ring detection.
+- Load-test report with p95/p99 latency and throughput numbers.
+- Kubernetes/Helm/Terraform deployment path.
+- Docker Compose smoke test in CI.

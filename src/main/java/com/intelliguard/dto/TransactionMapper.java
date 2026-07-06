@@ -27,6 +27,7 @@ public class TransactionMapper {
                 .paymentMethod(request.getPaymentMethod())
                 .deviceType(request.getDeviceType())
                 .ipAddress(request.getIpAddress())
+                .idempotencyKey(request.getIdempotencyKey())
                 .status("PENDING") // will be updated after fraud check
                 .build();
     }
@@ -37,6 +38,7 @@ public class TransactionMapper {
     public TransactionResponse toResponse(Transaction transaction, Long decisionTimeMs) {
         return TransactionResponse.builder()
                 .id(transaction.getId())
+                .tenantId(transaction.getTenantId())
                 .senderId(transaction.getSenderId())
                 .receiverId(transaction.getReceiverId())
                 .amount(transaction.getAmount())
@@ -47,6 +49,8 @@ public class TransactionMapper {
                 .status(transaction.getStatus())
                 .fraudScore(transaction.getFraudScore())
                 .flagReason(transaction.getFlagReason())
+                .idempotencyKey(transaction.getIdempotencyKey())
+                .modelVersion(transaction.getModelVersion())
                 .decisionTimeMs(decisionTimeMs)
                 .createdAt(transaction.getCreatedAt())
                 .build();

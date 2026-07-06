@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 public class TransactionResponse {
 
     private String id;
+    private String tenantId;
     private String senderId;
     private String receiverId;
     private BigDecimal amount;
@@ -29,6 +30,8 @@ public class TransactionResponse {
     private String status;           // APPROVED, BLOCKED, REVIEW
     private BigDecimal fraudScore;   // 0.0 = safe, 1.0 = definite fraud
     private String flagReason;       // Human-readable reason
+    private String idempotencyKey;
+    private String modelVersion;
 
     // How long did the decision take?
     private Long decisionTimeMs;

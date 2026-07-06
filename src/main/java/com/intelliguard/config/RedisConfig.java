@@ -3,8 +3,7 @@ package com.intelliguard.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericToStringSerializer;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
@@ -21,15 +20,14 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class RedisConfig {
 
     @Bean
-    public RedisTemplate<String, Long> redisTemplate(RedisConnectionFactory factory) {
-        RedisTemplate<String, Long> template = new RedisTemplate<>();
+    public StringRedisTemplate redisTemplate(RedisConnectionFactory factory) {
+        StringRedisTemplate template = new StringRedisTemplate();
         template.setConnectionFactory(factory);
 
         // Keys stored as plain strings: "velocity:USER_001:count"
         template.setKeySerializer(new StringRedisSerializer());
 
-        // Values stored as strings: "14" instead of binary
-        template.setValueSerializer(new GenericToStringSerializer<>(Long.class));
+        template.setValueSerializer(new StringRedisSerializer());
 
         return template;
     }

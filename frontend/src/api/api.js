@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:8080';
-
-// Create axios instance with base URL
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';// Create axios instance with base URL
 const api = axios.create({
     baseURL: BASE_URL,
     headers: { 'Content-Type': 'application/json' },
@@ -21,7 +19,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const requestUrl = error.config?.url || '';
+        const isAuthRequest = requestUrl.includes('/api/auth/login')
+            || requestUrl.includes('/api/auth/refresh');
+        if (error.response?.status === 401 && !isAuthRequest) {
             localStorage.removeItem('token');
             window.location.href = '/login';
         }
@@ -32,6 +33,12 @@ api.interceptors.response.use(
 // ─── Auth ────────────────────────────────────────────────
 export const login = (username, password) =>
     api.post('/api/auth/login', { username, password });
+
+export const refreshSession = (refreshToken) =>
+    api.post('/api/auth/refresh', { refreshToken });
+
+export const logoutSession = (refreshToken) =>
+    api.post('/api/auth/logout', { refreshToken });
 
 export const register = (username, password, role) =>
     api.post('/api/auth/register', { username, password, role });
@@ -55,5 +62,20 @@ export const getAuditLogs = () =>
 
 export const getAuditBySender = (senderId) =>
     api.get(`/api/audit/sender/${senderId}`);
+
+export const getCases = (params = {}) =>
+    api.get('/api/cases', { params });
+
+export const getCaseById = (id) =>
+    api.get(`/api/cases/${id}`);
+
+export const assignCase = (id, assignedTo) =>
+    api.patch(`/api/cases/${id}/assign`, { assignedTo });
+
+export const addCaseNote = (id, note) =>
+    api.post(`/api/cases/${id}/notes`, { note });
+
+export const resolveCase = (id, resolution, note) =>
+    api.patch(`/api/cases/${id}/resolve`, { resolution, note });
 
 export default api;

@@ -3,7 +3,7 @@ package com.intelliguard.controller;
 import com.intelliguard.dto.ApiResponse;
 import com.intelliguard.service.MLScoringService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,11 +26,10 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/health")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class HealthController {
 
     private final MLScoringService mlScoringService;
-    private final RedisTemplate<String, Long> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStatus() {
@@ -44,7 +43,7 @@ public class HealthController {
         // ML Model status
         Map<String, Object> ml = new LinkedHashMap<>();
         ml.put("loaded", mlScoringService.isModelLoaded());
-        ml.put("version", "xgboost-v1.0-onnx");
+        ml.put("version", mlScoringService.getModelVersion());
         ml.put("rocAuc", "0.9929");
         ml.put("features", 8);
         ml.put("mode", mlScoringService.isModelLoaded() ? "ML + Rules (60/40)" : "Rules only");

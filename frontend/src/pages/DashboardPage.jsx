@@ -55,7 +55,8 @@ export default function DashboardPage() {
     const fetchTransactions = async () => {
         try {
             const res = await getTransactions();
-            setTransactions(res.data.data || []);
+            const payload = res.data.data;
+            setTransactions(payload?.content || payload || []);
         } catch {}
     };
 
